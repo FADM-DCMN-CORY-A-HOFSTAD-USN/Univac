@@ -27,6 +27,27 @@ class BufferedTacticalConsole:
             'trigger_dispatched': False,
             'last_calc_timestamp': time.time()
         }
+    # Insert this calculation step inside your high-speed hardware math thread loop:
+    with self.firing_data_lock:
+    # Read live navigation bus variables from the network router
+    v_vessel = live_telemetry.get('speed_ms', 0.0)
+    yaw_rate = live_telemetry.get('yaw_rate_rads', 0.0)
+    roll_angle = live_telemetry.get('roll_angle_rad', 0.0)
+    
+    # 1. Apply forward velocity vector lead compensation
+    tgt_bearing_rad = math.radians(self.high_speed_numeric_buffer['target_bearing_deg'])
+    muzzle_velocity = 825.0 # Standard 5-inch shell speed (m/s)
+    
+    lead_correction_rad = math.asin((v_vessel * math.sin(tgt_bearing_rad)) / muzzle_velocity)
+    
+    # 2. Adjust target calculations based on hull-relative movements
+    compensated_bearing = self.high_speed_numeric_buffer['target_bearing_deg'] + math.degrees(lead_correction_rad)
+    
+    # 3. Apply the helm turn rate prediction offset over the shell's estimated 4-second time-of-flight
+    time_of_flight = 4.0
+    predicted_slew_offset = math.degrees(yaw_rate * time_of_flight)
+    
+    self.high_speed_numeric_buffer['current_azimuth_deg'] = compensated_bearing - predicted_slew_offset
 
         # BUFFER 2: GRAPHICS IMAGE BUFFER MEMORY
         # Fixed 400x400 canvas footprint mapping raw pixel states

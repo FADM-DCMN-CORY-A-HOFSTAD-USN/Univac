@@ -1,0 +1,56 @@
+$COMPILE PATCH05
+$SYS-PROCEDURE NTDS_BRIDGE_PATCH ;  
+  $COMMENT    
+    -----------------------------------------------------------------    
+    PATCH OBJECTIVE: ROUTE ACTIVE TACTICAL TRACK BLOCKS TO THE     
+    DIGITAL TACTICAL INTERMEDIARY CONTROLLER (DTIC) ON I/O CHANNEL 5.    
+    -----------------------------------------------------------------  
+  $  
+  $ ***************************************************************** $  
+  $ DATA DECLARATION DECLARE THE TACTICAL TRACK BUFFER ARRAY          $  
+  $ ***************************************************************** $    
+  DATA TACTICAL_POOL ;
+    $COMMENT MAP OUT A 4-WORD TRACK BUFFER COMPATIBLE WITH FPGA REGISTERS $    
+    ITEM TRACK_ID     U (0,31) ; $ WORD 0: UNIQUE SYSTEM TRACK ID      $    
+    ITEM TARGET_RNG   U (1,31) ; $ WORD 1: RAW RADAR RANGE IN YARDS    $    
+    ITEM TARGET_BRG   U (2,31) ; $ WORD 2: RADAR BEARING IN MINUTES    $    
+    ITEM TARGET_ALT   U (3,31) ; $ WORD 3: RADAR ALTITUDE IN FEET       $  
+  END-DATA  
+  
+  $ ***************************************************************** $  
+  $ EXECUTION EXECUTE PROCEDURAL BLOCK FOR OUTPUT PIPELINE             $  
+  $ ***************************************************************** $  
+  PROCEDURE XMIT_TO_AEGIS ;
+    BEGIN      
+      $COMMENT PRE-LOAD TEST TRACK BALANCED TO 1970s SCHEMATICS $      
+      TRACK_ID   = 42 ;
+      TARGET_RNG = 85000 ;       $ 85,000 YARDS DETECTED TARGET $      
+      TARGET_BRG = 5400 ;        $ 90 DEGREES REALIGNED TO MINUTES $      
+      TARGET_ALT = 12000 ;       $ 12,000 FEET ELEVATION $      
+      
+      $COMMENT         
+        EXECUTE NATIVE CMS-2 FILE-OUTPUT EXECUTIVE DIRECTIVE.
+        OUTPUT (CHANNEL_NUMBER, STARTING_DATA_POOL, NUMBER_OF_WORDS)      
+      $            
+      OUTPUT (5, TACTICAL_POOL, 4) ;
+      
+      $COMMENT         
+        CHECK INTERRUPT MONITOR STATUS REFRESH TO PREVENT TIMEOUTS       
+      $      
+      IF STATUS(5) EQUAL O'0000' ;
+        GOTO XMIT_SUCCESS ;      
+      ELSE ;        
+        GOTO HANDLING_ERR ;      
+      END-IF ;    
+      
+    XMIT_SUCCESS.      
+      RETURN ;          
+      
+    HANDLING_ERR.
+      $COMMENT TRIGGER SYSTEM FAULT LOG IF CONTROLLER FAILS TO ACK $      
+      OUTPUT (1, "CHAN 5 TIMEOUT", 3) ;
+      RETURN ;    
+    END  
+  END-PROCEDURE  
+SYS-END-PROCEDURE
+$TERMINATE$

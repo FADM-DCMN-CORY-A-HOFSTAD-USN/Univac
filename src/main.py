@@ -14,6 +14,11 @@ from network_layer.bridge_network_router import BridgeNetworkRouter
 from network_layer.serial_port_listener import ThreadedSerialPortListener
 from network_layer.tcp_command_listener import JsonTcpCommandListener
 from network_layer.weapon_serial_parser import WeaponSerialBusParser
+from network_layer.data_logger_node import AutomatedMissionDataLogger
+
+# Bootstrap real-time data logger pipeline
+mission_logger = AutomatedMissionDataLogger(log_directory="logs", file_prefix="uss_univac_bridge")
+mission_logger.start_logging_services()
 
 def bootstrap_system():
     print("=" * 80)

@@ -168,7 +168,24 @@ class UnivacReplacementBridgeEngine:
         current_rpm = telemetry.get('rpm', self.current_rpm_state)
         current_omega = (current_rpm * 2.0 * math.pi) / 60.0
         speed_ms = telemetry.get('speed_ms', 0.0)
-        
+        heading_rad = telemetry.get('heading_rad', 0.0)
+        gps_valid = telemetry.get('gps_valid', True)
+
+        # --- 0. SENSOR VALIDATION & INERTIAL DEAD RECKONING ---
+        if gps_valid:
+            self.last_known_lat_rad = telemetry.get('latitude_rad', self.last_known_lat_rad)
+            self.last_known_lon_rad = telemetry.get('longitude_rad', self.last_known_lon_rad)
+        else:
+            if self.subsystems_online and hasattr(self, 'dr_engine'):
+                new_lat, new_lon = self.dr_engine.feature_10_integrate_dr_position(
+                    self.last_known_lat_rad, self.last_known_lon_rad, speed_ms, heading_rad, dt
+                )
+                self.last_known_lat_rad = new_lat
+                self.last_known_lon_rad = new_lon
+                # Overwrite telemetry so downstream math uses the projected DR coordinates
+                telemetry['latitude_rad'] = new_lat
+                telemetry['longitude_rad'] = new_lon
+
         # --- WEAPON CROSS-COUPLING ---
         if self.subsystems_online and 'gun_azimuth_deg' in telemetry:
             weapon_impact = self.weapons_matrix.evaluate_vessel_cross_coupling_impact(

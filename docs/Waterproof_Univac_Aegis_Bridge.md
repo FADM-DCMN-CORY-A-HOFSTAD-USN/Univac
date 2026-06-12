@@ -1,9 +1,3 @@
-To build a system that can bridge these two eras, you cannot rely on standard consumer hardware. No single off-the-shelf computer natively includes a 1970s naval mainframe port alongside a modern Aegis network port.
-
-Instead, the solution requires a **Made-in-USA, military-grade rugged computer** configured with an internal, specialized **PCI Express (PCIe) legacy interface adapter**.
-
-## ---
-
 **1\. The Computer: Trenton Systems Rugged ION Mini PC or 3U BAM Server**
 
 [Trenton Systems](https://www.trentonsystems.com/en-us/resource-hub/blog/rugged-computers-military-satellite-communications) is an authoritative manufacturer of **cybersecure, tactical computers that are fully designed, manufactured, and assembled in Lawrenceville, Georgia, USA**. \[1, 2\]

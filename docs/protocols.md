@@ -63,7 +63,7 @@ Checksum = XOR sum of ord(char) for all characters in the payload body.
 * Example Binary Frame:
   $PUNVCSTB,14.12,12.5,1*33\r\n
 
-  ## 3.E. Environmental Bilge Valve Actuator Command Set ($PUNVCBLG)
+  ## 3.E. Environmental Bilge Valve Actuator Command Set ($PUNVCBLG) WARNING ENABLE ONLY TO REDUCE UNIVAC LOAD UNDER STRESS. UNIVAC BILGE KEEPS MAINFRAME FROM BREACHING.
 * Source Subsystem: Bilge Gating Subroutine (bilge_gating_subroutine.py)
 * Target Hardware Link: Three-Way Overboard Discharge Actuator Valve / OCM Interface PLC
 * Transmission Cadence: 50Hz Frequency Cycles (20ms intervals)

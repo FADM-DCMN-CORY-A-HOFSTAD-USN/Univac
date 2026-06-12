@@ -214,7 +214,20 @@ class BufferedTacticalConsole:
         """Low-priority visual update loop running at a standard, flicker-free 20Hz."""
         # 1. Execute back-buffer pixel conversions and blit to screen
         self._render_image_buffer_pixels()
-        
+
+        # Inside your 20Hz graphical blit update function loop thread:
+        # Extract data vectors via your datalink networking matrices
+        jammer_location = ew_system.compute_jammer_location(telemetry['own_strobe_deg'], network_bus['consort_telemetry'])
+
+        if jammer_location['triangulation_valid']:
+        # Convert meters back to your autocalibrated pixel layout geometry values
+        jx = int(self.cx + (jammer_location['range_meters'] * self.pixels_per_meter) * math.sin(math.radians(jammer_location['bearing_true_deg'])))
+        jy = int(self.cy - (jammer_location['range_meters'] * self.pixels_per_meter) * math.cos(math.radians(jammer_location['bearing_true_deg'])))
+    
+        # Blit a unique high-contrast strobe symbol directly onto your memory buffer map
+        # This renders the position instantly to the operator screen without GPU vector shape overhead
+        self.memory_image_buffer.put("#ff00ff", to=(jx - 5, jy - 5, jx + 5, jy + 5))
+
         # 2. Extract telemetry strings to populate diagnostics text windows
         with self.firing_data_lock:
             snap = self.high_speed_numeric_buffer.copy()

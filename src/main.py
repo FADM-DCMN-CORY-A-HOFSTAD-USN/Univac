@@ -5,6 +5,9 @@
 import time
 import sys
 import math
+import sys
+from config.boot_verification_suite import AutomatedBootVerificationSuite
+from network_layer.hardware_watchdog import AsynchronousHardwareWatchdog
 
 # Core Subsystem Imports
 from config.config_manager import VesselConfigManager
@@ -42,10 +45,24 @@ def bootstrap_system():
     print("        UNIVAC REPLACEMENT COGNITIVE MATRIX BRIDGE ARCHITECTURE MASTER CORE")
     print("=" * 80)
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # CRITICAL INJECTION: RUN AUTOMATED PRE-FLIGHT BOOT COGNITIVE SUITE
+    # ──────────────────────────────────────────────────────────────────────────
+    boot_validator = AutomatedBootVerificationSuite(target_config_file="vessel_config.json")
+    if not boot_validator.execute_full_suite():
+        print("[CRITICAL_BOOT_FAIL] Safety validations broke. Aborting startup to protect actuators.")
+        sys.exit(1) # Kill the application process immediately before opening network lines
+    # ──────────────────────────────────────────────────────────────────────────
+
     # STEP 1: Centralized Configuration Loading
     print("[BOOT] Accessing storage matrix data layers...")
     config_loader = VesselConfigManager("vessel_config.json")
     vessel_profile = config_loader.load_system_specifications()
+
+    # STEP 2: Initialize Safety Watchdog Layer
+    print("[BOOT] Activating asynchronous thread health watchdog...")
+    watchdog = AsynchronousHardwareWatchdog(critical_timeout_sec=1.0)
+    watchdog.start_watchdog()
 
     # STEP 2: Mathematical Engine Core Initialization
     print("[BOOT] Booting 75-Feature Predictive Control Engine Core...")

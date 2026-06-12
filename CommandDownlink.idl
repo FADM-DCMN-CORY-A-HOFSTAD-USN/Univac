@@ -1,0 +1,7 @@
+// Saved as CommandDownlink.idl
+struct AegisActuationCommand {
+    unsigned long unique_engagement_id;
+    unsigned long raw_launcher_azimuth;
+    unsigned long raw_launcher_elevation;
+    unsigned long fire_trigger_bitmask; // 0x0 = Safe, 0x1 = Arm & Fire
+};

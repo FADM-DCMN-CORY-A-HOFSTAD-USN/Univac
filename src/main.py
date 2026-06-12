@@ -28,6 +28,10 @@ anchor_lock_manager = AutonomousAnchorInterlockSubroutine()
 from network_layer.hardware_watchdog import AsynchronousHardwareWatchdog
 
 from control_core.bilge_authority_router import BilgeControlAuthorityRouter
+from control_core.flag_changer_subroutine import AutomaticFlagChangerSubroutine
+
+# Initialize the automatic flag-changing matrix
+flag_manager = AutomaticFlagChangerSubroutine()
 
 # Initialize the tri-state multiplexer router
 bilge_router = BilgeControlAuthorityRouter()
@@ -182,6 +186,7 @@ def bootstrap_system():
     try:
         while True:
             start_cycle_time = time.time()
+            
             # ... Tri-State Router resolves final actuator choices above ...
             
             # Inject data snapshot metrics straight into the memory queuing array (50Hz)
@@ -298,6 +303,33 @@ def bootstrap_system():
             # 7. Enforce strict deterministic clock bounding limits (Move this above jammer track to move stealth while cannons are sleeping.)
             execution_time = time.time() - start_cycle_time
             sleep_window = dt - execution_time
+
+                        # ... Weapons balancing, anchor interlocks, and bilge routers run above ...
+
+            # Process the automatic electro-mechanical flag matrix step (50Hz)
+            flag_actuation_commands = flag_manager.evaluate_flag_logic_matrix(
+                weapon_state=live_gun_state,
+                telemetry=live_telemetry,
+                transit_targets=active_targets
+            )
+
+            # Compile the raw ASCII text payload string for the winch motor PLCs
+            # Format: $PUNVCFLG,motor_pos,motor_power,lock_pin*CS\r\n
+            flag_payload = f"PUNVCFLG,{flag_actuation_commands['commanded_halyard_motor_position_pct']:.1f},{flag_actuation_commands['actuator_motor_power_relay']},{flag_actuation_commands['actuator_mechanical_lock_pin']}"
+            
+            # Calculate standard NMEA XOR checksum and write directly to the RS-422 bus wire
+            flag_cs = 0
+            for char in flag_payload: flag_cs ^= ord(char)
+            flag_packet = f"${flag_payload}*{flag_cs:02X}\r\n".encode('ascii')
+            
+            try:
+                machinery_bus_serial_port.write(flag_packet)
+            except NameError:
+                pass
+
+            # Append flag diagnostics metrics to your outbound network tracking packet structures
+            actuator_commands['upstream_autonomy_telemetry']['Flag_Changer_Status'] = flag_actuation_commands
+
             if sleep_window > 0:
                 time.sleep(sleep_window)
          

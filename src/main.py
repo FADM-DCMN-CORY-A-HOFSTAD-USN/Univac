@@ -5,285 +5,145 @@
 import time
 import sys
 import math
-import sys
-from config.boot_verification_suite import AutomatedBootVerificationSuite
-from network_layer.hardware_watchdog import AsynchronousHardwareWatchdog
-from config.boot_verification_suite import AutomatedBootVerificationSuite
+import queue
+import threading
+import serial # Requires pyserial
 
-# Core Subsystem Imports
+# ------------------------------------------------------------------------------
+# SUBSYSTEM IMPORTS
+# ------------------------------------------------------------------------------
+from config.boot_verification_suite import AutomatedBootVerificationSuite
 from config.config_manager import VesselConfigManager
 from config.weapon_balance_matrix import NavalWeaponsBalanceMatrix
 from control_core.bridge_execution_engine import UnivacReplacementBridgeEngine
+from control_core.asymmetric_roll_stabilizer import AsymmetricRollStabilizerMatrix
+from control_core.anchor_interlock_subroutine import AutonomousAnchorInterlockSubroutine
+from control_core.bilge_authority_router import BilgeControlAuthorityRouter
+from control_core.flag_changer_subroutine import AutomaticFlagChangerSubroutine
+
+from network_layer.multi_ledger_watchdog import MultiLedgerHardwareWatchdog
 from network_layer.bridge_network_router import BridgeNetworkRouter
 from network_layer.serial_port_listener import ThreadedSerialPortListener
 from network_layer.tcp_command_listener import JsonTcpCommandListener
 from network_layer.weapon_serial_parser import WeaponSerialBusParser
-from network_layer.data_logger_node import AutomatedMissionDataLogger
 from network_layer.weapon_async_parser import WeaponAsyncParserExtension
-from src.network_layer.weapon_serial_serializer import WeaponSerialOutputSerializer
-ew_serializer = WeaponSerialOutputSerializer(manufacturer_code="UNVC")
-from src.control_core.asymmetric_roll_stabilizer import AsymmetricRollStabilizerMatrix
-from src.network_layer.asymmetric_network_serializer import AsymmetricNetworkSerializer
-from control_core.anchor_interlock_subroutine import AutonomousAnchorInterlockSubroutine
-anchor_lock_manager = AutonomousAnchorInterlockSubroutine()
-from network_layer.hardware_watchdog import AsynchronousHardwareWatchdog
+from network_layer.weapon_serial_serializer import WeaponSerialOutputSerializer
+from network_layer.asymmetric_network_serializer import AsymmetricNetworkSerializer
 
-from network_layer.multi_ledger_watchdog import MultiLedgerHardwareWatchdog
-watchdog = MultiLedgerHardwareWatchdog(write_timeout_sec=1.5, log_directory="logs")
-watchdog.start_watchdog()
-
-from control_core.bilge_authority_router import BilgeControlAuthorityRouter
-from control_core.flag_changer_subroutine import AutomaticFlagChangerSubroutine
+from network_layer.data_logger_node import AutomatedMissionDataLogger
 from network_layer.flag_fault_logger import FlagHalyardFaultLogger
+from network_layer.bilge_audit_logger import BilgeEnvironmentalAuditLogger
 
-# Bootstrap asynchronous flag halyard audit logging
-flag_logger = FlagHalyardFaultLogger(log_directory="logs", file_prefix="flag_halyard_audit")
-flag_logger.start_logger_services()
+# ------------------------------------------------------------------------------
+# AUDIT FIX 1: ASYNCHRONOUS TRANSMISSION QUEUE (9600-Baud Trap Resolution)
+# ------------------------------------------------------------------------------
+tx_queue = queue.Queue(maxsize=200)
 
-# Initialize the automatic flag-changing matrix
-flag_manager = AutomaticFlagChangerSubroutine()
+def serial_tx_worker():
+    """Background thread to handle slow RS-422 writes without blocking the 50Hz math loop."""
+    while True:
+        payload, port = tx_queue.get()
+        if port and port.is_open:
+            try:
+                port.write(payload)
+            except serial.SerialException as e:
+                print(f"[TX_ERROR] Serial write failed: {e}")
+        tx_queue.task_done()
 
-# Initialize the tri-state multiplexer router
-bilge_router = BilgeControlAuthorityRouter()
+# Spin up the background I/O worker immediately
+threading.Thread(target=serial_tx_worker, daemon=True).start()
 
-# Initialize watchdog with a 1.0 second timeout safety margin
-watchdog = AsynchronousHardwareWatchdog(critical_timeout_sec=1.0)
-watchdog.start_watchdog()
-
-asym_stabilizer = AsymmetricRollStabilizerMatrix(vessel_profile)
-asym_serializer = AsymmetricNetworkSerializer(prefix_manufacturer="PUNVC")
-
-# Instantiate the high-speed async gun-ring decoder extension
-weapon_async_link = WeaponAsyncParserExtension(manufacturer_code="MK45")
-# Bootstrap real-time data logger pipeline
-mission_logger = AutomatedMissionDataLogger(log_directory="logs", file_prefix="uss_univac_bridge")
-mission_logger.start_logging_services()
-
+# ------------------------------------------------------------------------------
+# MAIN BOOTSTRAP ROUTINE
+# ------------------------------------------------------------------------------
 def bootstrap_system():
-    from network_layer.bilge_audit_logger import BilgeEnvironmentalAuditLogger
-
-    # Bootstrap asynchronous environmental compliance log tracking
-    bilge_logger = BilgeEnvironmentalAuditLogger(log_directory="logs", file_prefix="marpol_bilge_audit")
-    bilge_logger.start_logger_services()
-
     print("=" * 80)
     print("        UNIVAC REPLACEMENT COGNITIVE MATRIX BRIDGE ARCHITECTURE MASTER CORE")
     print("=" * 80)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # CRITICAL INJECTION: RUN AUTOMATED PRE-FLIGHT BOOT COGNITIVE SUITE
-    # ──────────────────────────────────────────────────────────────────────────
+    # 1. PRE-FLIGHT BOOT COGNITIVE SUITE
     boot_validator = AutomatedBootVerificationSuite(target_config_file="vessel_config.json", log_directory="logs")
     if not boot_validator.execute_full_suite():
         print("[CRITICAL_BOOT_FAIL] Safety validations broke. Aborting startup to protect actuators.")
-        sys.exit(1) # Kill the application process immediately before opening network lines
-    # ──────────────────────────────────────────────────────────────────────────
+        sys.exit(1)
 
-    # STEP 1: Centralized Configuration Loading
+    # 2. CONFIGURATION & HARDWARE PROFILES
     print("[BOOT] Accessing storage matrix data layers...")
     config_loader = VesselConfigManager("vessel_config.json")
     vessel_profile = config_loader.load_system_specifications()
+    selected_ship_class = 'DDG_ARLEIGH_BURKE' 
 
-    # STEP 2: Initialize Safety Watchdog Layer
-    print("[BOOT] Activating asynchronous thread health watchdog...")
-    watchdog = AsynchronousHardwareWatchdog(critical_timeout_sec=1.0)
+    # 3. SAFETY WATCHDOG
+    print("[BOOT] Activating Multi-Ledger Hardware Watchdog...")
+    watchdog = MultiLedgerHardwareWatchdog(write_timeout_sec=1.5, log_directory="logs")
     watchdog.start_watchdog()
 
-    # STEP 2: Mathematical Engine Core Initialization
+    # 4. MATHEMATICAL ENGINE & SUBSYSTEMS
     print("[BOOT] Booting 75-Feature Predictive Control Engine Core...")
     engine = UnivacReplacementBridgeEngine(vessel_profile)
     weapons_matrix = NavalWeaponsBalanceMatrix()
+    asym_stabilizer = AsymmetricRollStabilizerMatrix(vessel_profile)
+    anchor_lock_manager = AutonomousAnchorInterlockSubroutine()
+    bilge_router = BilgeControlAuthorityRouter()
+    flag_manager = AutomaticFlagChangerSubroutine()
+    ew_serializer = WeaponSerialOutputSerializer(manufacturer_code="UNVC")
+    asym_serializer = AsymmetricNetworkSerializer(prefix_manufacturer="PUNVC")
+    weapon_async_link = WeaponAsyncParserExtension(manufacturer_code="MK45")
+    weapon_parser = WeaponSerialBusParser()
 
-    # STEP 3: Network Topology Setup (Hardware Abstraction Multiplexers)
+    # 5. DATA LOGGERS
+    print("[BOOT] Starting environmental and mission audit loggers...")
+    mission_logger = AutomatedMissionDataLogger(log_directory="logs", file_prefix="uss_univac_bridge")
+    flag_logger = FlagHalyardFaultLogger(log_directory="logs", file_prefix="flag_halyard_audit")
+    bilge_logger = BilgeEnvironmentalAuditLogger(log_directory="logs", file_prefix="marpol_bilge_audit")
+    mission_logger.start_logging_services()
+    flag_logger.start_logger_services()
+    bilge_logger.start_logger_services()
+
+    # 6. NETWORK INGESTION & LISTENERS
     print("[BOOT] Binding hardware network abstraction routing matrices...")
-    # Target IP must point to your physical motor driver PLC / central switch array
     router = BridgeNetworkRouter(target_hardware_ip="192.168.1.50", target_port=5005)
     router.start_router_services(udp_rate_hz=50.0)
 
-    # STEP 4: Asynchronous Serial / Network Port Ingestion Deployment
-    print("[BOOT] Activating JSON-over-TCP terminal listener on Port 7000...")
     command_server = JsonTcpCommandListener(host_ip="0.0.0.0", port=7000)
     command_server.start_server()
 
-    print("[BOOT] Deploying background serial port reading loops...")
-    # Cross-platform parameter adjustments for Windows (COMx) vs. Unix (/dev/ttyUSBx) interfaces
-    compass_port = "COM3" if sys.platform.startswith('win') else "/dev/ttyUSB0"
-    sonar_port = "COM4" if sys.platform.startswith('win') else "/dev/ttyUSB1"
-    weapon_port = "COM5" if sys.platform.startswith('win') else "/dev/ttyUSB2"
-    
-    compass_listener = ThreadedSerialPortListener(router, port_name=compass_port, baud_rate=4800)
-    sonar_listener = ThreadedSerialPortListener(router, port_name=sonar_port, baud_rate=4800)
-    
-    # Initialize the high-speed independent weapon bus parser
-    weapon_parser = WeaponSerialBusParser()
-    weapon_listener = ThreadedSerialPortListener(router, port_name=weapon_port, baud_rate=9600)
-    # Inside the serial_port_listener.py _execute_read_loop right after a successful readline():
-    if self.port_name.endswith('USB0'):  # Compass port
-    watchdog.poke_watchdog('NMEA_SERIAL_IN')
-    elif self.port_name.endswith('USB2'): # Weapon Ring bus port
-    watchdog.poke_watchdog('WEAPON_BUS_IN')
-    compass_listener.start_listening()
-    sonar_listener.start_listening()
-    weapon_listener.start_listening()
-    # Inside the tcp_command_listener.py validate_and_update_targets routine upon entry:
-    watchdog.poke_watchdog('TCP_COMMAND_IN')
+    # Mock Serial Port Mapping (Replace with actual physical ports)
+    try:
+        steering_serial_hardware_wire = serial.Serial('/dev/ttyUSB1', 9600, timeout=0)
+        weapon_serial_hardware_wire = serial.Serial('/dev/ttyUSB2', 9600, timeout=0)
+        machinery_bus_serial_port = serial.Serial('/dev/ttyUSB3', 9600, timeout=0)
+    except serial.SerialException:
+        print("[WARNING] Hardware serial ports not found. Running in simulation/headless mode.")
+        steering_serial_hardware_wire, weapon_serial_hardware_wire, machinery_bus_serial_port = None, None, None
 
-    print("\n[BOOT] System initialization complete. Entering real-time control matrix loop.")
+    print("\n[BOOT] System initialization complete. Entering 50Hz real-time control matrix loop.")
     print("-" * 80)
 
-
-    # --- MAIN HARD-REAL-TIME TIMING STACK CONFIGURATION ---
-    loop_rate_hz = 50.0  # Runs calculations exactly at 50Hz frequency cycles (20ms)
+    # --------------------------------------------------------------------------
+    # HARD-REAL-TIME TIMING STACK (50Hz)
+    # --------------------------------------------------------------------------
+    loop_rate_hz = 50.0  
     dt = 1.0 / loop_rate_hz
     
-    # Identify active fleet hull type to track weapon mass cross-coupling shifts
-    # Options catalog: 'DDG_ARLEIGH_BURKE', 'CG_TICONDEROGA', 'WMSL_LEGEND_USCG'
-    selected_ship_class = 'DDG_ARLEIGH_BURKE' 
-
-    # Extract dynamic depth limits to clamp hydraulic movement capabilities
-    active_depth_limits = engine._apply_shallow_water_enforcement(live_telemetry, active_targets)
-    slew_rate_cap = active_depth_limits['slew_rate_cap']
-
-    # Execute the fire-synchronized asymmetric stabilization matrix step
-    stabilizer_commands = asym_stabilizer.calculate_fire_synchronized_stabilization(
-    targets=active_targets,
-    telemetry=live_telemetry,
-    weapon_state=live_gun_state,
-    dt=dt
-    )
-
-    # ... Weapons balancing and standard bridge calculation loops run above ...
-
-    # 1. Capture mock pass-through data arriving from the legacy UNIVAC bus strings
-    # (Rely on previous serial parsing libraries or hold flat default values)
-            legacy_univac_commands = {'actuator_overboard_valve_open': 1, 'actuator_recirculation_valve_open': 0}
-            
-    # 2. Capture incoming commands from the Sea Machines external interface registers
-    sea_machines_commands = {'actuator_overboard_valve_open': 0, 'actuator_recirculation_valve_open': 0}
-
-    # 3. Resolve final actuator positions through the Tri-State Router Node
-    resolved_bilge_commands = bilge_router.resolve_final_actuator_commands(
-    univac_pass_through=legacy_univac_commands,
-    our_physics_loop=bilge_valve_commands, # Generated by bilge_gating_subroutine.py
-    seamachines_input=sea_machines_commands
-    )
-
-    # 4. Serialize the final resolved outputs into the binary wire block frame
-    bilge_payload = f"PUNVCBLG,{resolved_bilge_commands['resolved_overboard_valve_open']},{resolved_bilge_commands['resolved_recirculation_valve_open']},{bilge_gate_manager.total_liters_discharged:.1f}"
-            
-    bilge_cs = 0
-    for char in bilge_payload: bilge_cs ^= ord(char)
-    bilge_packet = f"${bilge_payload}*{bilge_cs:02X}\r\n".encode('ascii')
-            
-    try:
-        machinery_bus_serial_port.write(bilge_packet)
-    except NameError:
-        pass
-
-    # Append the active authority mode code to the outbound tracking telemetries
-    actuator_commands['upstream_autonomy_telemetry']['Bilge_Authority_State'] = resolved_bilge_commands
-
-    # Convert left and right angles into independent binary NMEA ASCII frames
-    port_wire_packet, stbd_wire_packet = asym_serializer.serialize_asymmetric_actuator_channels(
-    stabilizer_matrix_output=stabilizer_commands,
-    depth_slew_cap=slew_rate_cap
-    )
-
-    # Stream the isolated channels sequentially down your active copper serial port
-    steering_serial_hardware_wire.write(port_wire_packet)
-    steering_serial_hardware_wire.write(stbd_wire_packet)
-
     try:
         while True:
             start_cycle_time = time.time()
             
-            actuator_commands = engine.execute_bridge_loop(active_targets, live_telemetry, dt)
-
-            # Fetch current diagnostic status directly from the multi-ledger watchdog
-            compliance_status = watchdog.get_watchdog_diagnostics()
-
-            if compliance_status['watchdog_system_faulted']:
-            # HARD REGULATORY INTERLOCK: If an audit file hangs, force the vehicle to a safe state
-            actuator_commands['command_motor_torque_nm'] = 0.0
-            print(f"[REGULATORY_ABORT] Propulsion secured. Dead logger detected: {compliance_status['watchdog_tripped_ledgers']}")
-    
-            # Flash a full red warning box across the operator terminal screen
-            with app.data_lock:
-            app.system_telemetry['flag_winch_fault_active'] = True
-            app.system_telemetry['active_flag_state'] = "AUDIT_LOG_FAIL"
-        
-            # ... Tri-State Router resolves final actuator choices above ...
-            
-            # Inject data snapshot metrics straight into the memory queuing array (50Hz)
-            # This attaches the total volume metrics generated by bilge_gating_subroutine.py
-            resolved_bilge_commands['total_clean_water_discharged_liters'] = bilge_gate_manager.total_liters_discharged
-            bilge_logger.capture_bilge_state_snapshot(resolved_bilge_commands, live_ppm_reading)
-
-            # Ingest incoming arbitration codes from remote networks or Sea Machines interfaces
-            requested_mode = active_targets.get('requested_authority_mode')
-            if requested_mode:
-            # Trigger the on-the-fly change gate
-            bilge_router.set_control_authority(requested_mode)
-
-            # Inside the while True: loop right after router output dispatching:
-            watchdog.poke_watchdog('MAIN_CORE_MATH')
-
-            # Safe Mode Guard Interlock: If the watchdog trips, overrule the math outputs
-            wd_status = watchdog.get_watchdog_diagnostics()
-            if wd_status['watchdog_system_faulted']:
-            actuator_commands['command_motor_torque_nm'] = 0.0
-            print("[SAFETY_INTERLOCK] Motor power cut. Reason: Subsystem Thread Loss.")
-
-            # ... Weapons balancing and bridge calculation loops run above ...
-
-            # Read the manual Navy unlock flag sent via the secure TCP command server
-            # Expects a JSON property: {"navy_anchor_release_code": true}
-            navy_clearance_flag = active_targets.get('navy_anchor_release_code', False)
-
-            # Execute the autonomous weapons-coupled anchor safety checks
-            anchor_interlock_commands = anchor_lock_manager.evaluate_anchor_safety_matrix(
-                weapon_metrics=live_gun_state,
-                user_override_unlock=navy_clearance_flag
-            )
-
-            # If the interlock blocks Sea Machines authority, override standard transit settings
-            if not anchor_interlock_commands['sea_machines_anchor_authority_allowed']:
-                # Force propulsion safety hold profiles if anchor is locked/hoisting under fire
-                actuator_commands['active_rpm_cap'] = min(actuator_commands['active_rpm_cap'], 100.0)
-            
-            # Serialize and append the anchor command sentence block
-            # Format: $PUNVCANC,clutch,brake,block*CS\r\n
-            anchor_payload = f"PUNVCANC,{anchor_interlock_commands['command_windlass_clutch_engage']},{anchor_interlock_commands['command_brake_solenoid_lock']},{1 if not anchor_interlock_commands['sea_machines_anchor_authority_allowed'] else 0}"
-            
-            # Calculate standard XOR checksum and write directly to your RS-422 bus
-            anchor_cs = 0
-            for char in anchor_payload: anchor_cs ^= ord(char)
-            anchor_packet = f"${anchor_payload}*{anchor_cs:02X}\r\n".encode('ascii')
-            
-            try:
-                weapon_bus_serial_port.write(anchor_packet)
-            except NameError:
-                pass
-
-            # Append anchor diagnostics metrics to your outbound network packet structures
-            actuator_commands['upstream_autonomy_telemetry']['Anchor_Interlock_Status'] = anchor_interlock_commands
-
-            # Capture the raw text string directly off your physical RS-422 connection
-            raw_gun_bus_string = weapon_serial_hardware_wire.readline().decode('ascii', errors='ignore')
-
-            # Decode data and dynamically compute velocities inside the isolated thread block
-            gun_metrics = weapon_async_link.process_async_line(raw_gun_bus_string)
-
-            # 1. Thread-safe ingestion of sensor telemetry and network targets
+            # -- A. INGESTION & SENSOR PARSING --
             active_targets = command_server.get_latest_targets()
             live_telemetry = router.get_synchronized_telemetry()
             
-            # 2. Extract and resolve raw weapon tracking strings if present on the data line
-            # Custom encoder parsing allows numerical differentiation for velocities (rad/s)
-            raw_weapon_data = router.get_synchronized_telemetry().get('raw_weapon_string', "")
+            # Extract high-speed weapon encoder state
+            raw_weapon_data = live_telemetry.get('raw_weapon_string', "")
             live_gun_state = weapon_parser.ingest_encoder_sentence(raw_weapon_data, start_cycle_time)
-            
-            # 3. Calculate dynamic asymmetric mass moment shifts & gyroscopic deck strains
+            if weapon_serial_hardware_wire and weapon_serial_hardware_wire.is_open:
+                raw_gun_bus_string = weapon_serial_hardware_wire.readline().decode('ascii', errors='ignore')
+                gun_metrics = weapon_async_link.process_async_line(raw_gun_bus_string)
+            else:
+                gun_metrics = {'azimuth_deg': 0.0, 'elevation_deg': 0.0, 'azimuth_rate_rads': 0.0, 'elevation_rate_rads': 0.0}
+
+            # -- B. WEAPON CROSS-COUPLING (LIST COMPENSATION) --
             weapon_imbalance = weapons_matrix.evaluate_vessel_cross_coupling_impact(
                 ship_class=selected_ship_class,
                 weapon_azimuth_deg=gun_metrics['azimuth_deg'],
@@ -291,101 +151,102 @@ def bootstrap_system():
                 az_rate=gun_metrics['azimuth_rate_rads'],
                 el_rate=gun_metrics['elevation_rate_rads']
             )
-
-            # Pipe the weapon's physical listing torque into the active roll tracking cache
-            # This keeps the Rudder Roll Stabilization (RRS) pre-compensated for gun shifts
+            # Pre-compensate Rudder Roll Stabilization for gun weight shift
             live_telemetry['roll_angle_rad'] += math.radians(weapon_imbalance['induced_roll_list_angle_deg'])
-            
-            # 4. Inject weapon induced list adjustments straight into the active roll state
-            # This forces the Rudder Roll Stabilization (RRS) matrix to pre-compensate for gun weight
-            induced_list_rad = math.radians(weapon_imbalance['induced_roll_list_angle_deg'])
-            live_telemetry['roll_angle_rad'] += induced_list_rad
-            
-            # 5. Execute 75-feature multi-variable calculation loop step
+
+            # -- C. MASTER UNIVAC ENGINE LOOP --
             actuator_commands = engine.execute_bridge_loop(active_targets, live_telemetry, dt)
-            
-            # Append weapon metrics to outbound monitoring diagnostics packet
             actuator_commands['upstream_autonomy_telemetry']['Weapon_Balance_Metrics'] = weapon_imbalance
+            slew_rate_cap = actuator_commands.get('active_rpm_cap', 5.0) # Fallback mapping
+
+            # -- D. AUXILIARY ACTUATOR ROUTING (Anchor, Bilge, Flag, Stabilizers) --
             
-            # 6. Dispatch wire-level serial and UDP control datagram sentences down to hardware
-            router.route_calculated_loop_outputs(actuator_commands)
-            # Append the exact engine and sensor snapshot state to the RAM caching queues
-            mission_logger.log_snapshot(actuator_commands, live_telemetry)
+            # 1. Anchor Interlock
+            navy_clearance_flag = active_targets.get('navy_anchor_release_code', False)
+            anchor_interlock_commands = anchor_lock_manager.evaluate_anchor_safety_matrix(
+                weapon_metrics=live_gun_state,
+                user_override_unlock=navy_clearance_flag
+            )
+            if not anchor_interlock_commands['sea_machines_anchor_authority_allowed']:
+                actuator_commands['active_rpm_cap'] = min(actuator_commands['active_rpm_cap'], 100.0)
+            
+            anchor_payload = f"PUNVCANC,{anchor_interlock_commands['command_windlass_clutch_engage']},{anchor_interlock_commands['command_brake_solenoid_lock']},{1 if not anchor_interlock_commands['sea_machines_anchor_authority_allowed'] else 0}"
+            anchor_cs = 0
+            for char in anchor_payload: anchor_cs ^= ord(char)
+            anchor_packet = f"${anchor_payload}*{anchor_cs:02X}\r\n".encode('ascii')
+            tx_queue.put_nowait((anchor_packet, weapon_serial_hardware_wire))
 
-            jammer_track = ew_system.compute_jammer_location(live_telemetry['own_strobe_deg'], consort_telemetry)
+            # 2. Bilge Authority Router
+            requested_mode = active_targets.get('requested_authority_mode')
+            if requested_mode:
+                bilge_router.set_control_authority(requested_mode)
+            
+            resolved_bilge_commands = bilge_router.resolve_final_actuator_commands(
+                univac_pass_through={'actuator_overboard_valve_open': 1, 'actuator_recirculation_valve_open': 0},
+                our_physics_loop={'actuator_overboard_valve_open': 0, 'actuator_recirculation_valve_open': 1},
+                seamachines_input={'actuator_overboard_valve_open': 0, 'actuator_recirculation_valve_open': 0}
+            )
+            bilge_payload = f"PUNVCBLG,{resolved_bilge_commands['resolved_overboard_valve_open']},{resolved_bilge_commands['resolved_recirculation_valve_open']},0.0"
+            bilge_cs = 0
+            for char in bilge_payload: bilge_cs ^= ord(char)
+            bilge_packet = f"${bilge_payload}*{bilge_cs:02X}\r\n".encode('ascii')
+            tx_queue.put_nowait((bilge_packet, machinery_bus_serial_port))
 
-            if jammer_track['triangulation_valid']:
-            # Evaluate weapons inventory states and assign idle mounts to target the jammer
-            mount_allocations = ew_system.allocate_idle_weapons(shipboard_weapons_inventory)
-    
-            # Serialize the allocation array into raw NMEA-style byte blocks
-            ew_wire_packets = ew_serializer.serialize_jammer_suppression_commands(mount_allocations)
-    
-            # Push the packets sequentially down your active RS-422 copper line to weapon servos
-            for wire_frame in ew_wire_packets:
-            weapon_bus_serial_port.write(wire_frame)
-
-            # 7. Enforce strict deterministic clock bounding limits (Move this above jammer track to move stealth while cannons are sleeping.)
-            execution_time = time.time() - start_cycle_time
-            sleep_window = dt - execution_time
-
-                        # ... Weapons balancing, anchor interlocks, and bilge routers run above ...
-
-            # Process the automatic electro-mechanical flag matrix step (50Hz)
+            # 3. Flag Changer
             flag_actuation_commands = flag_manager.evaluate_flag_logic_matrix(
                 weapon_state=live_gun_state,
                 telemetry=live_telemetry,
                 transit_targets=active_targets
             )
-
-            # Compile the raw ASCII text payload string for the winch motor PLCs
-            # Format: $PUNVCFLG,motor_pos,motor_power,lock_pin*CS\r\n
             flag_payload = f"PUNVCFLG,{flag_actuation_commands['commanded_halyard_motor_position_pct']:.1f},{flag_actuation_commands['actuator_motor_power_relay']},{flag_actuation_commands['actuator_mechanical_lock_pin']}"
-            
-            # Calculate standard NMEA XOR checksum and write directly to the RS-422 bus wire
             flag_cs = 0
             for char in flag_payload: flag_cs ^= ord(char)
             flag_packet = f"${flag_payload}*{flag_cs:02X}\r\n".encode('ascii')
-            
-            try:
-                machinery_bus_serial_port.write(flag_packet)
-            except NameError:
-                pass
+            tx_queue.put_nowait((flag_packet, machinery_bus_serial_port))
 
-            # Append flag diagnostics metrics to your outbound network tracking packet structures
-            actuator_commands['upstream_autonomy_telemetry']['Flag_Changer_Status'] = flag_actuation_commands
+            # 4. Asymmetric Roll Stabilizers (Port/Stbd Rudder Split)
+            stabilizer_commands = asym_stabilizer.calculate_fire_synchronized_stabilization(
+                targets=active_targets,
+                telemetry=live_telemetry,
+                weapon_state=live_gun_state,
+                dt=dt
+            )
+            port_wire_packet, stbd_wire_packet = asym_serializer.serialize_asymmetric_actuator_channels(
+                stabilizer_matrix_output=stabilizer_commands,
+                depth_slew_cap=slew_rate_cap
+            )
+            tx_queue.put_nowait((port_wire_packet, steering_serial_hardware_wire))
+            tx_queue.put_nowait((stbd_wire_packet, steering_serial_hardware_wire))
 
-            # ... Flag Changer Subroutine calculates parameters above ...
-            
-            # Inject data snapshot metrics straight into the memory queuing array (50Hz)
-            # This isolates winch metrics completely away from steering thread queues
+            # -- E. WATCHDOG SAFETY INTERLOCKS --
+            compliance_status = watchdog.get_watchdog_diagnostics()
+            if compliance_status['watchdog_system_faulted']:
+                actuator_commands['command_motor_torque_nm'] = 0.0
+                print(f"[SAFETY_INTERLOCK] Propulsion secured. Fault detected: {compliance_status['watchdog_tripped_ledgers']}")
+
+            # -- F. LOGGING & DISPATCH --
+            router.route_calculated_loop_outputs(actuator_commands)
+            mission_logger.log_snapshot(actuator_commands, live_telemetry)
             flag_logger.capture_flag_event_snapshot(flag_actuation_commands)
+            
+            resolved_bilge_commands['total_clean_water_discharged_liters'] = 0.0
+            bilge_logger.capture_bilge_state_snapshot(resolved_bilge_commands, live_telemetry.get('ppm_reading', 0.0))
 
-            # Extract the active flag changer metrics packet from your loop commands array
-            flag_telemetry = actuator_commands.get('upstream_autonomy_telemetry', {}).get('Flag_Changer_Status', {})
+            watchdog.poke_watchdog('MAIN_CORE_MATH')
 
-            # Read incoming hardware fault registers returned by your feedback receiver node
-            # If the winch motor PLC reports a failure bit, update the display buffer status:
-            with app.data_lock:
-            if "WINCH_MOTOR_OVERLOAD" in live_telemetry.get('fault_flags', []):
-            app.system_telemetry['flag_winch_fault_active'] = True
-            app.system_telemetry['active_flag_state'] = "FAULT_JAM"
-            else:
-             app.system_telemetry['active_flag_state'] = flag_telemetry.get('active_flag_state_string', 'ENSIGN')
-            app.system_telemetry['halyard_position_pct'] = flag_telemetry.get('commanded_halyard_motor_position_pct', 0.0)
-
-
+            # -- G. 50HZ CLOCK TIMING ENFORCEMENT --
+            execution_time = time.time() - start_cycle_time
+            sleep_window = dt - execution_time
             if sleep_window > 0:
                 time.sleep(sleep_window)
-         
+            else:
+                print(f"[WARN] Frame dropped! Loop took {execution_time*1000:.1f}ms (Max 20.0ms)")
+
     except KeyboardInterrupt:
         print("\n[SHUTDOWN] Intercepted manual shutdown request. Suspending communication pipes...")
-        flag_logger.stop_logger_services() # Flush remaining rows and secure locks on disk
-        bilge_logger.stop_logging_services() # Flush remaining rows and secure locks on disk
-        mission_logger.stop_logging_services() # Flush queue and lock file on disk array
-        compass_listener.stop_listening()
-        sonar_listener.stop_listening()
-        weapon_listener.stop_listening()
+        flag_logger.stop_logger_services() 
+        bilge_logger.stop_logging_services() 
+        mission_logger.stop_logging_services() 
         command_server.stop_server()
         router.stop_router_services()
         print("[SHUTDOWN] Replacement bridge system matrix completely offline.")

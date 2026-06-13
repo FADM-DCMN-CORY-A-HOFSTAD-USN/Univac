@@ -150,6 +150,20 @@ Checksum = XOR sum of ord(char) for all characters in the payload body.
 * Example Binary Frame:
   $PUNVCTDE,1.25,412.5,12.4,512.44,AN/UYK-43*0D\r\n
 
+## 3.L. Centralized Active Radar Tricks & Magnetic Levitation Command Set ($PUNVCTRQ)
+* Source Subsystem: Advanced Structural, Electronic Warfare, and Levitation Subroutines (museum_history_matrix_tricks.py)
+* Target Hardware Link: Central Hull Monitoring Hub / Active Electronic Countermeasures PLC
+* Transmission Cadence: 50Hz continuous streaming arrays or event-driven upon override state triggers.
+* Sentence Template:
+  $PUNVCTRQ,[Radar_Phase],[Mag_Lift],[Coral_Drag],[Pivot_Trq],[HAL_Lock]*[CS]\r\n
+* Payload Fields Specification:
+  * Radar_Phase: Float, 4 decimal places. Computed cross-eye radar beam deception phase shift (Radians). Range: 0.0000 to 6.2831.
+  * Mag_Lift: Float, 1 decimal place. Dispatched inductive track levitation lift force output (Newtons). Range: 0.0 to 950000.0.
+  * Coral_Drag: Float, 5 decimal places. Recalculated marine biofouling hull drag amplification factor. Range: 0.00000 to 0.02500.
+  * Pivot_Trq: Float, 1 decimal place. Heavy structural foundation pivot turning moment (Newton-Meters). Range: 0.0 to 5000000.0.
+  * HAL_Lock: Integer, 1-bit. Multi-model bit-width hardware abstraction layer verification bit. 1 = Active Lock, 0 = Bypass.
+* Example Binary Frame:
+  $PUNVCTRQ,3.1415,24500.5,0.00612,452100.0,1*1A\r\n
 
 ## 4. High-Speed Ordnance Bus Commands (Electronic Warfare)
 

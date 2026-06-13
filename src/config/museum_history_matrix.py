@@ -505,3 +505,59 @@ def equation_weapons_interlock_voltage(source_voltage: float, contact_resistance
 
 def equation_crossbar_switch_crosstalk(frequency_hz: float, coupling_capacitance: float) -> float:
     return 2.0 * math.pi * frequency_hz * coupling_capacitance
+
+# File Name: museum_history_matrix_deactivated.py
+# Location: /src/config/
+# Subsystem: Deactivated Facilities and Deep Space Tracking Equations Matrix
+
+import math
+
+# 91. BALLARD LOCKS: Saltwater Intrusion Density Boundary Layer Fluid Flow
+def equation_locks_salt_intrusion(fresh_height_m: float, salt_density: float) -> float:
+    g = 9.81
+    rho_fresh = 1000.0
+    # Calculates pressure differential pushing saltwater beneath freshwater gates
+    return g * fresh_height_m * (salt_density - rho_fresh)
+
+# 92. FORT LAWTON: Underground Bunker Wire Loss Attenuation Factor
+def equation_bunker_wire_loss(distance_meters: float, loss_per_meter_db: float) -> float:
+    return distance_meters * loss_per_meter_db
+
+# 95. NEVADA: Subterranean Shockwave Ground Velocity Dispersal
+def equation_nevada_shock_velocity(yield_kilotons: float, distance_meters: float) -> float:
+    if distance_meters <= 1.0: return 0.0
+    # Empirical ground motion acceleration scale model
+    return 100.0 * (math.sqrt(yield_kilotons) / (distance_meters ** 1.8))
+
+# 96. GIANT SATELLITE: Parabolic Dish Antenna Aperture Efficiency Gain
+def equation_satellite_dish_gain(diameter_meters: float, wavelength_meters: float, efficiency_eta: float) -> float:
+    if wavelength_meters <= 1e-5: return 0.0
+    return ((math.pi * diameter_meters / wavelength_meters) ** 2) * efficiency_eta
+
+# 99. Y2K ERROR: Two-Digit Date Rollover Time Interval Delta Exception
+# Simulates the Y2K code break by calculating elapsed years. If rollover occurs, it flags an anomaly.
+def equation_y2k_time_delta(year_two_digit_start: int, year_two_digit_end: int) -> tuple:
+    if year_two_digit_end < year_two_digit_start:
+        # Software thinks time went backward (e.g., from 99 to 00 interpreted as 1999 to 1900)
+        calculated_elapsed = (100 + year_two_digit_end) - year_two_digit_start
+        is_faulted = True
+    else:
+        calculated_elapsed = year_two_digit_end - year_two_digit_start
+        is_faulted = False
+    return calculated_elapsed, is_faulted
+
+# --- LOGISTICAL SUPPORT FUNCTIONS (NODES 93, 94, 97, 98, 100) ---
+def equation_sand_point_inventory(demand: float, safety_stock: float) -> float:
+    return demand + safety_stock
+
+def equation_beacon_hill_load_shed(total_load_kw: float, capacity_kw: float) -> float:
+    return max(0.0, total_load_kw - capacity_kw)
+
+def equation_gemini_tracking_range(signal_time_ms: float) -> float:
+    return (299792.458 * signal_time_ms) / 2.0
+
+def equation_port_crane_overload(load_mass_kg: float, safe_rating_kg: float) -> bool:
+    return load_mass_kg > safe_rating_kg
+
+def equation_base_securing_valve_power(actuator_pressure: float, seal_surface_area: float) -> float:
+    return actuator_pressure * seal_surface_area

@@ -62,6 +62,21 @@ Checksum = XOR sum of ord(char) for all characters in the payload body.
   * Combat_Lock: Integer, 1-bit. Weapon sync status bit. 1 = Apex combat lock active, 0 = Standard storm damping.
 * Example Binary Frame:
   $PUNVCSTB,14.12,12.5,1*33\r\n
+  
+
+## 3.D. Autonomous Anchor Windlass Override Command Set ($PUNVCANC)
+* Source Subsystem: Anchor Interlock Subroutine (anchor_interlock_subroutine.py)
+* Target Hardware Link: Anchor Windlass Hydraulic Clutch / Hydraulic Lock Pin Solenoid PLC
+* Transmission Cadence: 50Hz Frequency Cycles (20ms intervals)
+* Sentence Template:
+  $PUNVCANC,[Clutch_Engage],[Brake_Lock],[Sea_Machines_Blocked]*[CS]\r\n
+* Payload Fields Specification:
+  * Clutch_Engage: Integer, 1-bit. 1 = Force hoist/clutch engagement, 0 = Release.
+  * Brake_Lock: Integer, 1-bit. 1 = Drive physical mechanical locking pin down, 0 = Retract pin.
+  * Sea_Machines_Blocked: Integer, 1-bit. 1 = Block incoming Sea Machines anchor commands, 0 = Allow.
+* Example Binary Frame:
+  $PUNVCANC,1,1,1*0E\r\n
+
 
   ## 3.E. Environmental Bilge Valve Actuator Command Set ($PUNVCBLG) WARNING ENABLE ONLY TO REDUCE UNIVAC LOAD UNDER STRESS. UNIVAC BILGE KEEPS MAINFRAME FROM BREACHING.
 * Source Subsystem: Bilge Gating Subroutine (bilge_gating_subroutine.py)
@@ -136,15 +151,19 @@ Checksum = XOR sum of ord(char) for all characters in the payload body.
 * Example Binary Frame:
   $PMK45,090.58,025.15,0000*24\r\n
 
-## 3.D. Autonomous Anchor Windlass Override Command Set ($PUNVCANC)
-* Source Subsystem: Anchor Interlock Subroutine (anchor_interlock_subroutine.py)
-* Target Hardware Link: Anchor Windlass Hydraulic Clutch / Hydraulic Lock Pin Solenoid PLC
-* Transmission Cadence: 50Hz Frequency Cycles (20ms intervals)
+  ## 6.C. Aviation Knowledge Engine Telemetry Broadcast Stream ($AVNC)
+* Source Subsystem: Basic Aviation Knowledge In-Flight Interface (live_telemetry.py)
+* Target Hardware Link: Flight Tracking Bridge Co-Processor Set (aviation_telemetry_bridge.py)
+* Transmission Cadence: 50Hz continuous streaming arrays during in-flight tactical maneuvers.
 * Sentence Template:
-  $PUNVCANC,[Clutch_Engage],[Brake_Lock],[Sea_Machines_Blocked]*[CS]\r\n
+  $AVNC,[Lat],[Lon],[Alt],[Dens_Alt],[Speed],[Temp],[Fault_Mask]*[CS]\r\n
 * Payload Fields Specification:
-  * Clutch_Engage: Integer, 1-bit. 1 = Force hoist/clutch engagement, 0 = Release.
-  * Brake_Lock: Integer, 1-bit. 1 = Drive physical mechanical locking pin down, 0 = Retract pin.
-  * Sea_Machines_Blocked: Integer, 1-bit. 1 = Block incoming Sea Machines anchor commands, 0 = Allow.
+  * Lat: Float, 4 decimal places. Geographic DGPS latitude coordinate tracking. Range: -90.0000 to 90.0000 degrees.
+  * Lon: Float, 4 decimal places. Geographic DGPS longitude coordinate tracking. Range: -180.0000 to 180.0000 degrees.
+  * Alt: Float, 1 decimal place. True barometric elevation altitude height. Range: 0.0 to 50000.0 feet.
+  * Dens_Alt: Float, 1 decimal place. Density altitude performance constraint. Range: -2000.0 to 60000.0 feet.
+  * Speed: Float, 1 decimal place. GPS ground track velocity. Range: 0.0 to 1200.0 knots.
+  * Temp: Float, 1 decimal place. Static outside air temperature reading. Range: -50.0 to 60.0 °C.
+  * Fault_Mask: 4-Digit Hexadecimal string. Aerospace sensor bus integrity register (0000 = Nominal).
 * Example Binary Frame:
-  $PUNVCANC,1,1,1*0E\r\n
+  $AVNC,47.6085,-122.3315,1240.0,1495.0,122.5,22.1,0000*3D\r\n

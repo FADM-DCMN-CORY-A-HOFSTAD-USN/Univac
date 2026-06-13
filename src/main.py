@@ -263,6 +263,29 @@ def bootstrap_system():
             anchor_packet = f"${anchor_payload}*{anchor_cs:02X}\r\n".encode('ascii')
             tx_queue.put_nowait((anchor_packet, weapon_serial_hardware_wire))
 
+                        # ... Core navigation laws, warning gates, and asymmetric rudder trim loops execute above ...
+
+            # Read the pre-calculated metrics from the asynchronous memory lock
+            with cognitive_data_lock:
+                active_cog_metrics = latest_cognitive_output.copy()
+
+            # If the adaptive frequency compensator registers a severe, sustained structural vibration spike,
+            # automatically engage protective speed caps to reduce hull slamming stresses:
+            if active_cog_metrics.get('deck_vibration_hz', 0.0) >= 12.5: # Extreme structural vibration limit
+                actuator_commands['active_rpm_cap'] = min(actuator_commands['active_rpm_cap'], 140.0)
+                
+            # Pass metrics down to the physical serial ports and append to outbound packets
+            if active_cog_metrics:
+                actuator_commands['upstream_autonomy_telemetry']['Diagnostic_Maintenance_Metrics'] = {
+                    "measured_deck_resonance_hz": active_cog_metrics.get('deck_vibration_hz', 0.0),
+                    "active_hydraulic_cancellation_force_n": active_cog_metrics.get('hydraulic_dampening_command_n', 0.0),
+                    "serial_line_pattern_match_ratio": active_cog_metrics.get('serial_pattern_match_ratio', 0.0),
+                    "right_wrong_decider_active": active_cog_metrics.get('right_wrong_logic_nominal', True)
+                }
+                
+            # Poke your safety hardware watchdog to confirm the main loop is running smoothly
+            watchdog.poke_watchdog('MAIN_CORE_MATH')
+
             # ... Core navigation laws and asymmetric rudder trim loops execute above ...
 
             # Read the pre-calculated metrics from the asynchronous memory lock

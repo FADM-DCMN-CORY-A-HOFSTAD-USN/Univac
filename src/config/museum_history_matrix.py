@@ -931,3 +931,36 @@ def equation_anti_corruption_hash_verify(data_payload_string: str, previous_row_
     # Computes SHA-256 signature to protect the data trail from manual editing
     import hashlib
     return hashlib.sha256(concatenated_string.encode('utf-8')).hexdigest()
+# File Name: museum_history_matrix_industrial.py
+# Location: /src/config/
+# Subsystem: Industrial Vehicles, PLC Controls, and Sanitation Physics Equations Array
+
+import math
+
+# 276. DECON TRUCK: Chemical Deluge Wash Nozzle Hydrodynamic Flow Rate
+# Calculates fluid velocity passing out of a decontamination wash manifold based on pipe pressure
+def equation_decon_nozzle_velocity(line_pressure_pascal: float, fluid_density_kg_m3: float = 1000.0) -> float:
+    discharge_coefficient = 0.62
+    if line_pressure_pascal <= 0.0 or fluid_density_kg_m3 <= 0.1: return 0.0
+    # Torricelli flow extension: V = Cd * sqrt(2 * P / rho)
+    return discharge_coefficient * math.sqrt((2.0 * line_pressure_pascal) / fluid_density_kg_m3)
+
+# 280. TOW TUG: Dynamic Tractive Tire-to-Ground Friction Force Limit
+# Calculates maximum pull force a pushback tractor can exert on wet tarmac before slipping wheels
+def equation_tow_tug_tractive_limit(tractor_weight_newtons: float, friction_coefficient_mu: float) -> float:
+    return max(0.0, tractor_weight_newtons * friction_coefficient_mu)
+
+# 281. PLC GRID: Discrete 24V Ladder Logic System Input Scan Cycle Frequency
+# Simulates processing loop frequency constraints across early industrial hardware processors
+def equation_plc_scan_time(number_of_logic_rungs: int, instructions_per_rung: int, processor_speed_mhz: float) -> float:
+    total_instructions = number_of_logic_rungs * instructions_per_rung
+    if processor_speed_mhz <= 0.001: return 999.0
+    # Returns estimated scan time loop latency window in milliseconds
+    return (total_instructions / (processor_speed_mhz * 1000000.0)) * 1000.0
+
+# 287. FIGHTER SAM: Airborne Radar Lead-Computing Target Intercept Range
+# Predicts flight intercept parameters for an air-to-air missile tracking a closing supersonic contact
+def equation_fighter_intercept_time(range_meters: float, target_speed_ms: float, missile_speed_ms: float) -> float:
+    closure_rate = missile_speed_ms + target_speed_ms
+    if closure_rate <= 0.1: return 999.0
+    return range_meters / closure_rate

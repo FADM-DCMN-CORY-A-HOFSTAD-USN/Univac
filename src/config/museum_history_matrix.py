@@ -561,3 +561,58 @@ def equation_port_crane_overload(load_mass_kg: float, safe_rating_kg: float) -> 
 
 def equation_base_securing_valve_power(actuator_pressure: float, seal_surface_area: float) -> float:
     return actuator_pressure * seal_surface_area
+
+# File Name: museum_history_matrix_part8.py
+# Location: /src/config/
+# Subsystem: Sci-Fi, Astronomical, and Environmental Equations Matrix
+
+import math
+
+# 101. STARFLEET: Warp Field Bubble Continuum Distortion Factor
+def equation_starfleet_warp_stability(warp_factor: float, energy_input_cochranes: float) -> float:
+    if energy_input_cochranes <= 0.1: return 0.0
+    return (warp_factor ** 3.333) / energy_input_cochranes
+
+# 102. ANDROMEDA: Relativistic Star-Track Velocity Time Dilation
+def equation_andromeda_time_dilation(v_star_ms: float) -> float:
+    c_speed = 299792458.0
+    val = 1.0 - (v_star_ms ** 2) / (c_speed ** 2)
+    return 1.0 / math.sqrt(max(0.01, val))
+
+# 104. LYRA: Radio Telescope Phase Interferometry Array Delay
+def equation_lyra_interferometry_delay(baseline_m: float, arrival_angle_rad: float) -> float:
+    c_speed = 299792458.0
+    return (baseline_m * math.cos(arrival_angle_rad)) / c_speed
+
+# 105. SIRIUS: Binary Star Gravitational Accretion Disk Energy Flux
+def equation_sirius_accretion_flux(mass_white_dwarf: float, accretion_rate: float, radius_m: float) -> float:
+    g_constant = 6.67430e-11
+    if radius_m <= 10.0: return 0.0
+    return (g_constant * mass_white_dwarf * accretion_rate) / (2.0 * radius_m)
+
+# 106. TAURUS: Interstellar nursery Jeans Mass Collapse Threshold
+def equation_taurus_jeans_mass(sound_speed_ms: float, cloud_density_kg_m3: float) -> float:
+    g_constant = 6.67430e-11
+    if cloud_density_kg_m3 <= 1e-25: return 99999.0
+    return (sound_speed_ms ** 3) / math.sqrt(g_constant ** 3 * cloud_density_kg_m3)
+
+# 107. MEDICAL simulation: Vital Sign Triage Trauma Survival Index
+def equation_medical_triage_index(gcs_score: int, systolic_bp: float, respiratory_rate: float) -> float:
+    # Logistic regression simulation for medical training matrices
+    score = (0.2 * gcs_score) + (0.01 * systolic_bp) - (0.05 * respiratory_rate)
+    return 1.0 / (1.0 + math.exp(-score))
+
+# 109. AIR QUALITY: HEPA Filter Cleanroom Particulate Retention Rate
+def equation_air_quality_hepa_efficiency(upstream_count_pm25: float, downstream_count_pm25: float) -> float:
+    if upstream_count_pm25 <= 0.0: return 100.0
+    return (1.0 - (downstream_count_pm25 / upstream_count_pm25)) * 100.0
+
+# --- SUPPORT MATH FUNCTIONS (NODES 103, 108, 110) ---
+def equation_orion_darknet_nodes(channels: int, jitter: float) -> float:
+    return float(channels) * math.sin(jitter)
+
+def equation_hospital_pathogen_spread(contagious_count: int, rate: float) -> float:
+    return float(contagious_count) * rate
+
+def equation_bunker_co2_scrubber(liters_co2: float, absorption_efficiency: float) -> float:
+    return liters_co2 * (1.0 - absorption_efficiency)

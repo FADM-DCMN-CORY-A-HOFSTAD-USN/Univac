@@ -141,7 +141,31 @@ def bootstrap_system():
     # --------------------------------------------------------------------------
     loop_rate_hz = 50.0  
     dt = 1.0 / loop_rate_hz
-    
+    def asynchronous_cognitive_loop_worker():
+    global latest_cognitive_output
+    print("[BOOT] Isolated Cognitive Ring Thread successfully active.")
+    while True:
+        # Pull safe snapshots of active telemetry fields
+        current_telemetry_snapshot = router.get_synchronized_telemetry()
+        current_targets_snapshot = command_server.get_latest_targets()
+        
+        # Process the 15-node cognitive and resonance calculations independently
+        calculated_results = cognitive_plant.process_cognitive_step(
+            live_telemetry=current_telemetry_snapshot,
+            active_targets=current_targets_snapshot,
+            dt=0.05
+        )
+        
+        # Write results to the shared register via a fast memory thread-lock
+        with cognitive_data_lock:
+            latest_cognitive_output = calculated_results.copy()
+            
+        time.sleep(0.05) # Maintain a steady 20Hz update pace for non-safety logic
+
+        # Spin up the background worker thread before launching the 50Hz core navigation loop
+        cog_thread = threading.Thread(target=asynchronous_cognitive_loop_worker, daemon=True)
+        cog_thread.start()
+
     try:
         while True:
             start_cycle_time = time.time()

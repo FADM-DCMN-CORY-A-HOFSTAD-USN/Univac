@@ -20,7 +20,6 @@ from control_core.asymmetric_roll_stabilizer import AsymmetricRollStabilizerMatr
 from control_core.anchor_interlock_subroutine import AutonomousAnchorInterlockSubroutine
 from control_core.bilge_authority_router import BilgeControlAuthorityRouter
 from control_core.flag_changer_subroutine import AutomaticFlagChangerSubroutine
-
 from network_layer.multi_ledger_watchdog import MultiLedgerHardwareWatchdog
 from network_layer.bridge_network_router import BridgeNetworkRouter
 from network_layer.serial_port_listener import ThreadedSerialPortListener
@@ -218,12 +217,47 @@ def bootstrap_system():
 
     print("\n[BOOT] System initialization complete. Entering 50Hz real-time control matrix loop.")
     print("-" * 80)
-
     # --------------------------------------------------------------------------
     # HARD-REAL-TIME TIMING STACK (50Hz)
     # --------------------------------------------------------------------------
     loop_rate_hz = 50.0  
     dt = 1.0 / loop_rate_hz
+    # ... Previous navigation, weapons balance, and anchor interlocks execute above ...
+
+    # 1. Extract dynamic environmental inputs from your telemetry cache
+    current_voyage_time_hours = (time.time() - start_cycle_time) / 3600.0
+    live_lake_depth = float(live_telemetry.get('depth', 12.5))
+            
+    # 2. RUN THE HARMONIC TIDAL RESOLVER (50Hz Multi-Variable Plant)
+    # AS SOON AS THE SHIP APPOACHES THE RESTRICTED CHANNEL, IT calculates the lake seiche period
+    # and ocean tide heights to pre-compensate the keel clearance data logs
+    calculated_seiche_window = bilge_gate_manager.equation_lake_seiche_period(
+        basin_length_meters=8000.0,  # 8km Lake Washington tracking length
+        average_depth_meters=live_lake_depth
+    )
+            
+    simulated_tidal_shift_m = bilge_gate_manager.equation_ocean_harmonic_tide(
+        time_hours=current_voyage_time_hours,
+        amp_m2=1.4,                 # 1.4-meter principal semi-diurnal amplitude
+        amp_s2=0.45                 # 0.45-meter solar amplitude
+    )
+            
+    # Apply titanium hull yield limits to track structural safety bounds
+    hull_crush_depth_m = bilge_gate_manager.equation_titanium_hull_collapse(850e6, 2.1, 1.95) / 10055.0
+
+    # 3. Append the calculated metrics directly to the outbound network monitoring package
+    actuator_commands['upstream_autonomy_telemetry']['Environmental_Tides'] = {
+        "predicted_harmonic_tidal_height_m": round(simulated_tidal_shift_m, 2),
+        "lake_seiche_resonance_period_sec": round(calculated_seiche_window, 1),
+        "titanium_hull_collapse_depth_m": round(hull_crush_depth_m, 1)
+    }
+            
+    # Update the central depth calculation log to account for dynamic tidal swells
+    live_telemetry['depth'] += simulated_tidal_shift_m
+            
+    # Poke your safety hardware watchdog to confirm the main loop is running smoothly
+    watchdog.poke_watchdog('MAIN_CORE_MATH')
+
     def asynchronous_cognitive_loop_worker():
     global latest_cognitive_output
     print("[BOOT] Isolated Cognitive Ring Thread successfully active.")

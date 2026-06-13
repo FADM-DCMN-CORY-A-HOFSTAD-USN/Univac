@@ -33,6 +33,9 @@ from network_layer.asymmetric_network_serializer import AsymmetricNetworkSeriali
 from network_layer.data_logger_node import AutomatedMissionDataLogger
 from network_layer.flag_fault_logger import FlagHalyardFaultLogger
 from network_layer.bilge_audit_logger import BilgeEnvironmentalAuditLogger
+from network_layer.aviation_telemetry_bridge import AviationTelemetryBridgeNode
+# Initialize the Basic Aviation Knowledge network tracking link bridge
+aviation_bridge = AviationTelemetryBridgeNode(prefix_id="AVNC")
 
 # ------------------------------------------------------------------------------
 # AUDIT FIX 1: ASYNCHRONOUS TRANSMISSION QUEUE (9600-Baud Trap Resolution)
@@ -151,6 +154,26 @@ def bootstrap_system():
                 az_rate=gun_metrics['azimuth_rate_rads'],
                 el_rate=gun_metrics['elevation_rate_rads']
             )
+
+            # A. Read raw incoming aerospace strings from your serial or network router cache
+            raw_aviation_string = router.get_synchronized_telemetry().get('raw_aviation_string', "")
+            current_timestamp = time.time()
+
+            # B. Ingest data and dynamically calculate velocity drifts inside the async engine block
+            live_flight_state = aviation_bridge.ingest_aerospace_sentence(raw_aviation_string, current_timestamp)
+
+            # C. If flight targets are locked, cross-couple tracking parameters straight to your rudders
+            if live_flight_state['gps_lock_valid']:
+                # Pass the computed flight crab angle into your live navigation parameters
+                # This ensures the steering control laws proactively counter aerodynamic cross-axis drift
+                live_telemetry['yaw_rate_rads'] += (live_flight_state['aerodynamic_crab_angle_rad'] * 0.1)
+                
+                # Poke your multi-ledger watchdog to confirm the flight link data is actively logging
+                watchdog.poke_watchdog('NMEA_SERIAL_IN')
+                
+            # D. Append the aviation snapshots directly to the outbound network tracking packets
+            actuator_commands['upstream_autonomy_telemetry']['Aviation_Bridge_Status'] = live_flight_state
+
             # Pre-compensate Rudder Roll Stabilization for gun weight shift
             live_telemetry['roll_angle_rad'] += math.radians(weapon_imbalance['induced_roll_list_angle_deg'])
 

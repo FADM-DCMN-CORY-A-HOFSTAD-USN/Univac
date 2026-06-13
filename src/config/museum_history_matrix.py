@@ -259,3 +259,102 @@ def equation_vlf_helical_resonance(inductance_henries: float, capacitance_farads
     if denom <= 0.0:
         return 0.0
     return 1.0 / denom
+
+# File Name: museum_history_matrix_part5.py
+# Location: /src/config/
+# Subsystem: Extended Infrastructure Museum Node Mathematical Equations Array
+
+import math
+
+# 41. RAIL FREIGHT: Rolling Train Wheel Kinetic Braking Force
+def equation_rail_braking_force(train_mass_kg: float, velocity_ms: float, stop_distance_m: float) -> float:
+    if stop_distance_m <= 0.1: return 999999.0
+    return (0.5 * train_mass_kg * (velocity_ms ** 2)) / stop_distance_m
+
+# 42. STATION: Manifest Processing Network Capacity (Little's Law)
+def equation_station_manifest_queue(arrival_rate_per_min: float, average_wait_min: float) -> float:
+    return arrival_rate_per_min * average_wait_min
+
+# 43. TRAFFIC: Roadway Loop Sensor Inductance Shift Vector
+def equation_traffic_loop_inductance(turns: int, area_m2: float, permeability: float, length_m: float) -> float:
+    return (permeability * (turns ** 2) * area_m2) / length_m
+
+# 44. DAM: Hydrostatic Spillway Discharge Flow Rate (Weir Equation)
+def equation_dam_spillway_flow(discharge_coef: float, width_m: float, head_height_m: float) -> float:
+    return discharge_coef * width_m * (head_height_m ** 1.5)
+
+# 45. DYNAMO: Synchronous AC Generator Phase Power Angle
+def equation_generator_dynamo_power(v_internal: float, v_bus: float, react_ohms: float, delta_rad: float) -> float:
+    if react_ohms <= 0.01: return 0.0
+    return ((v_internal * v_bus) / react_ohms) * math.sin(delta_rad)
+
+# 46. BUNKER HVAC: Airflow Velocity Duct Pressure (Bernoulli Equation)
+def equation_bunker_hvac_pressure(air_density: float, velocity_ms: float) -> float:
+    return 0.5 * air_density * (velocity_ms ** 2)
+
+# 47. SCHOOL: Simulated Radar Signal Doppler Shift Frequency
+def equation_school_doppler_frequency(base_freq_hz: float, target_velocity_ms: float) -> float:
+    c_speed_of_light = 299792458.0
+    return base_freq_hz * (1.0 + (target_velocity_ms / c_speed_of_light))
+
+# 48. NIKE SAM: Missile Target Intercept Aspect Radius Vector
+def equation_nike_sam_intercept(r_target_m: float, v_missile_ms: float, t_flight_sec: float) -> float:
+    return r_target_m + (v_missile_ms * t_flight_sec)
+
+# 49. SCIENCE CENTER: Microwave Antenna Waveguide Cutoff Frequency
+def equation_science_waveguide_cutoff(width_m: float) -> float:
+    c_speed = 299792458.0
+    return c_speed / (2.0 * width_m)
+
+# 50. SECURITY ALARM: Infrared Fence Sensor Boundary Break Signal Volt
+def equation_security_sensor_voltage(input_voltage: float, r_sensor: float, r_fixed: float) -> float:
+    if (r_sensor + r_fixed) <= 0.0: return 0.0
+    return input_voltage * (r_fixed / (r_sensor + r_fixed))
+
+# 51. WIND TURBINE: Aerodynamic Rotor Lift Power Extraction
+def equation_wind_turbine_power(air_density: float, blade_radius_m: float, wind_speed_ms: float, cp_efficiency: float) -> float:
+    area = math.pi * (blade_radius_m ** 2)
+    return 0.5 * air_density * area * (wind_speed_ms ** 3) * cp_efficiency
+
+# 52. SOLAR ARRAY: Photovoltaic Panel Incidence Angle Correction
+def equation_solar_incidence_power(base_flux_wm2: float, sun_angle_rad: float, panel_angle_rad: float) -> float:
+    return base_flux_wm2 * math.cos(sun_angle_rad - panel_angle_rad)
+
+# 53. CCTV: Coaxial Video Cable Attenuation Decibel Drop
+def equation_cctv_cable_loss(length_feet: float, attenuation_per_100ft: float) -> float:
+    return (length_feet / 100.0) * attenuation_per_100ft
+
+# 54. CORE DRILL: Shaft Torsional Shear Stress Limit
+def equation_drill_shaft_shear_stress(torque_nm: float, shaft_radius_m: float) -> float:
+    polar_inertia = (math.pi * (shaft_radius_m ** 4)) / 2.0
+    return (torque_nm * shaft_radius_m) / polar_inertia
+
+# 55. CRANE CONSTRUCTION: Boom Overturning Load Tension Moment
+def equation_construction_crane_moment(load_mass_kg: float, radius_arm_m: float) -> float:
+    return load_mass_kg * 9.81 * radius_arm_m
+
+# 56. BUILDER SEABEE: Airfield Landing Mat Shear Load Index
+def equation_seabee_mat_load(aircraft_weight_n: float, contact_area_m2: float) -> float:
+    if contact_area_m2 <= 0.01: return aircraft_weight_n
+    return aircraft_weight_n / contact_area_m2
+
+# 57. MACHINE LOGIC: Heuristic Symbolic Logic State Search Tree Bounds
+def equation_ai_tree_complexity(branching_factor: int, depth_limit: int) -> float:
+    return float(branching_factor ** depth_limit)
+
+# 58. SPACE FORCE: Satellite Elliptic Path Radial Distance
+def equation_space_force_radius(semi_major_axis_m: float, eccentricity: float, true_anomaly_rad: float) -> float:
+    numerator = semi_major_axis_m * (1.0 - (eccentricity ** 2))
+    denominator = 1.0 + eccentricity * math.cos(true_anomaly_rad)
+    return numerator / denominator
+
+# 59. SPACE COMMAND: Radar Pulse Time-Of-Flight Distance Target
+def equation_space_command_radar_range(time_of_flight_sec: float) -> float:
+    c_speed = 299792458.0
+    return (c_speed * time_of_flight_sec) / 2.0
+
+# 60. RADIO TRANSMITTER: Antenna Resonant LC Impedance Match Frequency
+def equation_radio_antenna_impedance(inductance_h: float, capacitance_f: float) -> float:
+    denom = 2.0 * math.pi * math.sqrt(inductance_h * capacitance_f)
+    if denom <= 0.0: return 0.0
+    return 1.0 / denom

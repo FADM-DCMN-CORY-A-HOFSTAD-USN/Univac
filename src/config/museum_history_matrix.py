@@ -964,3 +964,47 @@ def equation_fighter_intercept_time(range_meters: float, target_speed_ms: float,
     closure_rate = missile_speed_ms + target_speed_ms
     if closure_rate <= 0.1: return 999.0
     return range_meters / closure_rate
+
+# File Name: museum_history_matrix_robotics_tides.py
+# Location: /src/config/
+# Subsystem: Robotics, Cartography, and Global Tidal Equations Array
+
+import math
+
+# 291. ROBOT NODE: Multi-Axis Kinematic Arm Joint Extension Vector
+def equation_robot_arm_extension(shoulder_angle_rad: float, elbow_angle_rad: float, link_1_m: float, link_2_m: float) -> float:
+    # Solves forward 2D kinematics to locate the tool end-effector position relative to the base origin
+    x_pos = (link_1_m * math.cos(shoulder_angle_rad)) + (link_2_m * math.cos(shoulder_angle_rad + elbow_angle_rad))
+    return x_pos
+
+# 293. TITANIUM: Thick-Walled Deep Submersible Cylinder Yield Collapse Pressure
+def equation_titanium_hull_collapse(yield_strength_pa: float, outer_radius_m: float, inner_radius_m: float) -> float:
+    if outer_radius_m <= inner_radius_m: return 0.0
+    radius_ratio_squared = (inner_radius_m / outer_radius_m) ** 2
+    # Von Mises plastic collapse model for heavy alloy diving spheres
+    return (yield_strength_pa / math.sqrt(3.0)) * (1.0 - radius_ratio_squared)
+
+# 296. MAP NODE: Spherical Geographic Latitude to Mercator Y-Pixel Projection
+def equation_map_mercator_projection(latitude_deg: float, map_height_pixels: int) -> float:
+    # Standard conformal Mercator mapping equation: converts latitude to vertical pixel coordinates
+    lat_rad = math.radians(max(-85.0, min(85.0, latitude_deg)))
+    return (map_height_pixels / (2.0 * math.pi)) * math.log(math.tan((math.pi / 4.0) + (lat_rad / 2.0)))
+
+# 297. OCEAN TIDES: Simplified Principal Harmonic Water Height Envelope (M2 + S2)
+def equation_ocean_harmonic_tide(time_hours: float, amp_m2: float, amp_s2: float) -> float:
+    # M2 period is approx 12.42 hours, S2 period is exactly 12.00 hours
+    freq_m2 = 2.0 * math.pi / 12.42
+    freq_s2 = 2.0 * math.pi / 12.00
+    return (amp_m2 * math.cos(freq_m2 * time_hours)) + (amp_s2 * math.cos(freq_s2 * time_hours))
+
+# 302. LAKE SEICHE: Closed-Basin Fundamental Resonant Oscillation Period (Merian's Formula)
+# Calculates standing wave slosh periods inside closed lakes or locks channels
+def equation_lake_seiche_period(basin_length_meters: float, average_depth_meters: float) -> float:
+    g_accel = 9.81
+    if average_depth_meters <= 0.1: return 0.0
+    # Merian Law: T = (2 * L) / sqrt(g * h)
+    return (2.0 * basin_length_meters) / math.sqrt(g_accel * average_depth_meters)
+
+# 294-295 ACCELERATED MATRIX FILLER (TREASURE MAP / ALCHEMY GENERAL CONVERTER)
+def equation_alchemy_decay_cross_section(flux_density: float, target_area: float) -> float:
+    return flux_density * target_area

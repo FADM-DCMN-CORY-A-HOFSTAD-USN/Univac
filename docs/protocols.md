@@ -104,6 +104,22 @@ Checksum = XOR sum of ord(char) for all characters in the payload body.
 * Example Binary Frame:
   $PUNVCFLG,100.0,1,0*1A\r\n
 
+## 3.G. Shore Facility Auxiliaries Override Command Set ($PUNVCFAC)
+* Source Subsystem: Base Infrastructure Core Plant (base_infrastructure_core.py)
+* Target Hardware Link: Central Shore Interface Unit / Base Utility Relay PLC Array
+* Transmission Cadence: 50Hz continuous streaming arrays or event-driven upon override state triggers.
+* Sentence Template:
+  $PUNVCFAC,[Crane_Pwr],[Hook_Lock],[Door_State],[Breaker],[Sump],[Dehumid],[Heat]*[CS]\r\n
+* Payload Fields Specification:
+  * Crane_Pwr: Float, 1 decimal place. Winch motor torque scale. Range: -100.0% (Lower) to 100.0% (Hoist).
+  * Hook_Lock: Integer, 1-bit. Crane terminal quick-release pin hook lock. 1 = Secured, 0 = Release.
+  * Door_State: Integer, 1-bit. Heavy facility protective blast door actuator. 1 = Opening, 0 = Sealed.
+  * Breaker: Integer, 1-bit. Main grid substation connection line relay. 1 = Closed/On, 0 = Trip/Shed.
+  * Sump: Integer, 1-bit. Auxiliary drainage pit bilge pump motor relay. 1 = Force Run, 0 = Standby.
+  * Dehumid: Float, 1 decimal place. HVAC target humidity environment value. Range: 20.0% to 85.0%.
+  * Heat: Integer, 1-bit. Climate loop hot water heating manifold valve. 1 = Open/Heat, 0 = Safe Shut.
+* Example Binary Frame:
+  $PUNVCFAC,-50.0,1,0,1,1,30.0,0*3A\r\n
 
 ## 4. High-Speed Ordnance Bus Commands (Electronic Warfare)
 

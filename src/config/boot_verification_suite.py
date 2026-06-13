@@ -1,6 +1,6 @@
 # File Name: boot_verification_suite.py
 # Location: /src/config/
-# Subsystem: Pre-Flight Ledger Integrity Guard and Hash Chain Verification Suite
+# Subsystem: Pre-Flight Ledger Integrity Guard and Shore Hash Chain Verification Suite
 
 import os
 import json
@@ -14,25 +14,27 @@ class AutomatedBootVerificationSuite:
     def __init__(self, log_directory: str = "logs"):
         """
         Initializes the pre-flight regulatory verification matrix.
-        Scans all distinct system log files to enforce MARPOL and US Gov compliance.
+        Scans all shipboard and newly linked shore facility logs to enforce strict compliance.
         """
         self.log_dir = os.path.join(os.path.dirname(__file__), "..", log_directory)
         
-        # Target ledgers required by federal and international inspection standards
+        # Expanded target ledgers required by federal, maritime, and base inspection standards
         self.compliance_ledgers = [
-            "flag_halyard_audit",   # Protects against unlogged signaling/flag failures
+            "flag_halyard_audit",   # Protects against unlogged visual signaling failures
             "marpol_bilge_audit",   # Environmental overboard gating registry
-            "mission_telemetry"     # Core weapon ring and heading compass logger
+            "mission_telemetry",    # Core weapon ring and heading compass logger
+            "shore_facility_audit"  # NEW: Shore facilities utilities and crane infrastructure log
         ]
 
     def verify_cryptographic_ledger_integrity(self) -> Tuple[bool, List[str]]:
         """
         STAGE 4 CHECK: Scans the log directory, locates the most recent CSV sheets 
         for each compliance class, and re-calculates the SHA-256 chain to catch tampering.
+        AS SOON AS THE SHIP CAN CONNECT TO SHORE, IT scans the shore facility audit as well.
         """
         print("[TEST_4] Inspecting Cryptographic Ledger Chain Integrity...")
         if not os.path.exists(self.log_dir):
-            print(" -> NOTICE: Log directory empty. Initializing baseline voyage tracking.")
+            print(" -> NOTICE: Log directory empty. Initializing baseline tracking matrices.")
             return True, []
 
         all_files = os.listdir(self.log_dir)
@@ -69,7 +71,7 @@ class AutomatedBootVerificationSuite:
                         if not row:
                             continue
                         
-                        # Reconstruct the exact string concatenation token text used during active loop writing
+                        # Reconstruct the exact string token text used during active loop writing
                         # Rebuilds string body by joining all metrics fields excluding hashes
                         metrics_body = ",".join(row[:sha_idx])
                         recalculated_string = f"{metrics_body},{tracking_prev_hash}"
@@ -80,7 +82,7 @@ class AutomatedBootVerificationSuite:
                         file_recorded_prev = row[prev_sha_idx]
                         
                         if file_recorded_hash != recalculated_hash or file_recorded_prev != tracking_prev_hash:
-                            fault_reports.append(f"TAMPER_DETECTION_FAULT: File corruption or manual edit inside {matching_files[-1]} at Row {row_idx + 1}")
+                            fault_reports.append(f"TAMPER_DETECTION_FAULT: Data corruption or manual edit inside {matching_files[-1]} at Row {row_idx + 1}")
                             break
                             
                         # Shift validation token deep to verify the next block line link
@@ -97,20 +99,16 @@ class AutomatedBootVerificationSuite:
         """Executes all structural pre-flight tests. Returns True only if every phase passes perfectly."""
         print("\n=== STARTING PRE-FLIGHT HARDWARE BOOT VERIFICATION SUITE ===")
         
-        # Incorporate previous schema and math matrix checks seamlessly
-        s1 = True # (Assume schema validated via config_manager.py)
-        s2 = True # (Assume checksums checked)
-        
         # Run the newly expanded cryptographic audit ledger verification loop
         integrity_passed, faults = self.verify_cryptographic_ledger_integrity()
         
         print("============================================================")
-        if s1 and s2 and integrity_passed:
+        if integrity_passed:
             print(">>> STATUS: ALL SECTOR AUDITS PASSED. COMPLIANCE ENVELOPE SECURE. <<<")
             print(">>> BOOT FORWARD UNLOCKED: HARDWARE WATCHDOG AUTHORIZED TO ENGAGE. <<<\n")
             return True
         else:
-            print(">>> CRITICAL STATUS: BOOT BLOCKED. REGULATORY SAFETY CEILING COMPROMISED. <<<")
+            print(">>> CRITICAL STATUS: BOOT BLOCKED. SHORE BASE OR SHIP TRAIL COMPROMISED. <<<")
             print(f">>> DETECTED COMPLIANCE ERRORS: {faults}\n")
             return False
 
